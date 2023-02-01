@@ -1,0 +1,547 @@
+name: Build & test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  GO_VERSION: 1.19
+  PARALLEL_VERSION: parallel-20220422
+  # jobs.<job_id>.container 는 env 를 사용할 수 없음 -> 값을 직접 넣음
+  # 참고: https://docs.github.com/en/actions/learn-github-actions/contexts#context-availability
+  BASE_DOCKER_IMAGE: ubuntu:18.04
+  MOUNT_PATH_IN_CONTAINER: /var/lib/p2pcp
+  PEER_COUNT: 4
+
+jobs:
+  docker_user:
+    runs-on: [self-hosted]
+    outputs:
+      uid: ${{ steps.uid.outputs.UID }}
+      gid: ${{ steps.gid.outputs.GID }}
+    steps:
+      - id: uid
+        run: echo "UID=$(id -u)" >> $GITHUB_OUTPUT
+      - id: gid
+        run: echo "GID=$(cat /etc/group | grep docker | cut -d':' -f3)" >> $GITHUB_OUTPUT
+
+  get_gnu_parallel:
+    runs-on: [self-hosted]
+    steps:
+      - name: Download gnu parallel
+        run: |
+          curl http://ftp.gnu.org/gnu/parallel/${{ env.PARALLEL_VERSION }}.tar.bz2 -o ${{ env.PARALLEL_VERSION }}.tar.bz2
+          tar xvf ${{ env.PARALLEL_VERSION }}.tar.bz2
+      - name: Upload gnu parallel
+        uses: actions/upload-artifact@v2
+        with:
+          name: gnu-parallel
+          path: ${{ env.PARALLEL_VERSION }}/src/parallel
+
+  build:
+    runs-on: [self-hosted]
+    steps:
+      - name: cleanup
+        run: rm -rf *
+
+      - name: git checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Build
+        run: make
+
+      - name: Unit Tests
+        run: make test
+
+      - name: Upload p2pcp binary file
+        uses: actions/upload-artifact@v2
+        with:
+          name: p2pcp-bin
+          path: p2pcp
+
+      - name: Upload p2pcp test script file
+        uses: actions/upload-artifact@v2
+        with:
+          name: p2pcp-test
+          path: test/
+
+  create_random:
+    runs-on: [self-hosted]
+    steps:
+      - name: Create random src file
+        run: |
+          [ -d "src/" ] && chmod -R 777 src/ && rm -rf src/
+          mkdir -p src/data
+          for i in {1..2}
+          do
+            head -c 512MB < /dev/urandom > src/data/512m_rand_file_$(printf "%03d" $i)
+          done
+          for i in {1..50}
+          do
+            head -c 1KB < /dev/urandom > src/data/1k_rand_file_$(printf "%03d" $i)
+          done
+
+      - name: Upload random src file
+        uses: actions/upload-artifact@v2
+        with:
+          name: p2pcp-src
+          path: src/
+
+  local_test:
+    runs-on: [self-hosted]
+    needs: [build, create_random]
+    steps:
+      - name: cleanup
+        run: rm -rf *
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: p2pcp-bin
+          path: ./
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: p2pcp-src
+          path: src/
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: p2pcp-test
+          path: test/
+
+      - name: chmod downloaded files
+        run: |
+          chmod +x p2pcp
+          chmod +x -R test/
+
+      - name: run p2pcp
+        run: ./p2pcp -compress-type none -src src/ -dst dst/ -exit-complete
+
+      - name: get src checksum
+        id: src-checksum
+        run: echo "CHECKSUM=$(test/create_checksum.sh src/)" >> $GITHUB_OUTPUT
+
+      - name: get dst checksum
+        id: dst-checksum
+        run: echo "CHECKSUM=$(test/create_checksum.sh dst/)" >> $GITHUB_OUTPUT
+
+      - name: diff checksum
+        run: |
+          if [ ! "${{ steps.src-checksum.outputs.CHECKSUM }}" = "${{ steps.dst-checksum.outputs.CHECKSUM }}" ]; then
+            exit 1
+          fi
+
+  local_zstd_test:
+    runs-on: [self-hosted]
+    needs: [build, create_random]
+    steps:
+      - name: cleanup
+        run: rm -rf *
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: p2pcp-bin
+          path: ./
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: p2pcp-src
+          path: src/
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: p2pcp-test
+          path: test/
+
+      - name: chmod downloaded files
+        run: |
+          chmod +x p2pcp
+          chmod +x -R test/
+
+      - name: run p2pcp
+        run: ./p2pcp -compress-type zstd -src src/ -dst dst/ -exit-complete
+
+      - name: get src checksum
+        id: src-checksum
+        run: echo "CHECKSUM=$(test/create_checksum.sh src/)" >> $GITHUB_OUTPUT
+
+      - name: get dst checksum
+        id: dst-checksum
+        run: echo "CHECKSUM=$(test/create_checksum.sh dst/)" >> $GITHUB_OUTPUT
+
+      - name: diff checksum
+        run: |
+          if [ ! "${{ steps.src-checksum.outputs.CHECKSUM }}" = "${{ steps.dst-checksum.outputs.CHECKSUM }}" ]; then
+            exit 1
+          fi
+
+  peer_test:
+    runs-on: [self-hosted]
+    needs: [docker_user, get_gnu_parallel, build, create_random]
+    container:
+      image: ubuntu:18.04
+      options: >-
+        --user ${{ needs.docker_user.outputs.uid }}:${{ needs.docker_user.outputs.gid }}
+        -v "/usr/bin/docker":"/usr/bin/docker"
+    steps:
+      - name: cleanup
+        run: rm -rf *
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: p2pcp-bin
+          path: ./
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: p2pcp-src
+          path: src/
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: p2pcp-test
+          path: test/
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: gnu-parallel
+          path: ./
+
+      - name: chmod downloaded files
+        run: |
+          chmod +x p2pcp
+          chmod +x parallel
+          chmod +x -R test/
+
+      - name: run p2pcp
+        shell: bash
+        run: |
+          SEEDER="p2pcp_seeder_$(mktemp --dry-run XXXXXXXXXX)"
+          PEER_LIST="${SEEDER}:10090"
+          PEER_ARRAY=
+          for i in $(seq ${{ env.PEER_COUNT }}); do
+            P=p2pcp_peer_$(mktemp --dry-run XXXXXXXXXX)
+            PEER_ARRAY+=($P)
+            PEER_LIST=${PEER_LIST},$P:10090
+          done
+
+          # p2pcp seeder run
+          docker run --name ${SEEDER} --network ${{ job.container.network }} \
+              --user ${{ needs.docker_user.outputs.uid }}:${{ needs.docker_user.outputs.gid }} \
+              -v ${{ github.workspace }}:${{ env.MOUNT_PATH_IN_CONTAINER }} \
+              -d --rm ${{ env.BASE_DOCKER_IMAGE }} \
+              ${{ env.MOUNT_PATH_IN_CONTAINER }}/p2pcp \
+              -compress-type none -src ${{ env.MOUNT_PATH_IN_CONTAINER }}/src
+
+          # p2pcp peer run
+          ./parallel -j0 \
+              docker run --name {1} --network ${{ job.container.network }} \
+                  --user ${{ needs.docker_user.outputs.uid }}:${{ needs.docker_user.outputs.gid }} \
+                  -v ${{ github.workspace }}:${{ env.MOUNT_PATH_IN_CONTAINER }} \
+                  -i --rm ${{ env.BASE_DOCKER_IMAGE }} \
+                  ${{ env.MOUNT_PATH_IN_CONTAINER }}/p2pcp \
+                  -compress-type none -exit-complete \
+                  -dst ${{ env.MOUNT_PATH_IN_CONTAINER }}/dst{#} -peer-list {2} 2> /dev/null \
+              ::: ${PEER_ARRAY[@]} ::: ${PEER_LIST}
+
+          # p2pcp seeder stop
+          docker rm -f ${SEEDER}
+
+      - name: get src checksum
+        id: src-checksum
+        run: echo "CHECKSUM=$(test/create_checksum.sh src/)" >> $GITHUB_OUTPUT
+
+      - name: diff checksum
+        run: |
+          for i in $(seq ${{ env.PEER_COUNT }}); do
+            DST_CHECKSUM=$(test/create_checksum.sh dst$i/)
+            if [ ! "${{ steps.src-checksum.outputs.CHECKSUM }}" = "$DST_CHECKSUM" ]; then
+              exit 1
+            fi
+          done
+
+  peer_zstd_test:
+    runs-on: [self-hosted]
+    needs: [docker_user, get_gnu_parallel, build, create_random]
+    container:
+      image: ubuntu:18.04
+      options: >-
+        --user ${{ needs.docker_user.outputs.uid }}:${{ needs.docker_user.outputs.gid }}
+        -v "/usr/bin/docker":"/usr/bin/docker"
+    steps:
+      - name: cleanup
+        run: rm -rf *
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: p2pcp-bin
+          path: ./
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: p2pcp-src
+          path: src/
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: p2pcp-test
+          path: test/
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: gnu-parallel
+          path: ./
+
+      - name: chmod downloaded files
+        run: |
+          chmod +x p2pcp
+          chmod +x parallel
+          chmod +x -R test/
+
+      - name: run p2pcp
+        shell: bash
+        run: |
+          SEEDER="p2pcp_seeder_$(mktemp --dry-run XXXXXXXXXX)"
+          PEER_LIST="${SEEDER}:10090"
+          PEER_ARRAY=
+          for i in $(seq ${{ env.PEER_COUNT }}); do
+            P=p2pcp_peer_$(mktemp --dry-run XXXXXXXXXX)
+            PEER_ARRAY+=($P)
+            PEER_LIST=${PEER_LIST},$P:10090
+          done
+
+          # p2pcp seeder run
+          docker run --name ${SEEDER} --network ${{ job.container.network }} \
+              --user ${{ needs.docker_user.outputs.uid }}:${{ needs.docker_user.outputs.gid }} \
+              -v ${{ github.workspace }}:${{ env.MOUNT_PATH_IN_CONTAINER }} \
+              -d --rm ${{ env.BASE_DOCKER_IMAGE }} \
+              ${{ env.MOUNT_PATH_IN_CONTAINER }}/p2pcp \
+              -compress-type zstd -src ${{ env.MOUNT_PATH_IN_CONTAINER }}/src
+
+          # p2pcp peer run
+          ./parallel -j0 \
+              docker run --name {1} --network ${{ job.container.network }} \
+                  --user ${{ needs.docker_user.outputs.uid }}:${{ needs.docker_user.outputs.gid }} \
+                  -v ${{ github.workspace }}:${{ env.MOUNT_PATH_IN_CONTAINER }} \
+                  -i --rm ${{ env.BASE_DOCKER_IMAGE }} \
+                  ${{ env.MOUNT_PATH_IN_CONTAINER }}/p2pcp \
+                  -compress-type zstd -exit-complete \
+                  -dst ${{ env.MOUNT_PATH_IN_CONTAINER }}/dst{#} -peer-list {2} 2> /dev/null \
+              ::: ${PEER_ARRAY[@]} ::: ${PEER_LIST}
+
+          # p2pcp seeder stop
+          docker rm -f ${SEEDER}
+
+      - name: get src checksum
+        id: src-checksum
+        run: echo "CHECKSUM=$(test/create_checksum.sh src/)" >> $GITHUB_OUTPUT
+
+      - name: diff checksum
+        run: |
+          for i in $(seq ${{ env.PEER_COUNT }}); do
+            DST_CHECKSUM=$(test/create_checksum.sh dst$i/)
+            if [ ! "${{ steps.src-checksum.outputs.CHECKSUM }}" = "$DST_CHECKSUM" ]; then
+              exit 1
+            fi
+          done
+
+  src_and_peer_test:
+    runs-on: [self-hosted]
+    needs: [docker_user, get_gnu_parallel, build, create_random]
+    container:
+      image: ubuntu:18.04
+      options: >-
+        --user ${{ needs.docker_user.outputs.uid }}:${{ needs.docker_user.outputs.gid }}
+        -v "/usr/bin/docker":"/usr/bin/docker"
+    steps:
+      - name: cleanup
+        run: rm -rf *
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: p2pcp-bin
+          path: ./
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: p2pcp-src
+          path: src/
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: p2pcp-test
+          path: test/
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: gnu-parallel
+          path: ./
+
+      - name: chmod downloaded files
+        run: |
+          chmod +x p2pcp
+          chmod +x parallel
+          chmod +x -R test/
+
+      - name: run p2pcp
+        shell: bash
+        run: |
+          SEEDER="p2pcp_seeder_$(mktemp --dry-run XXXXXXXXXX)"
+          PEER_LIST="${SEEDER}:10090"
+          PEER_ARRAY=
+          for i in $(seq ${{ env.PEER_COUNT }}); do
+            P=p2pcp_peer_$(mktemp --dry-run XXXXXXXXXX)
+            PEER_ARRAY+=($P)
+            PEER_LIST=${PEER_LIST},$P:10090
+          done
+
+          # p2pcp seeder run
+          docker run --name ${SEEDER} --network ${{ job.container.network }} \
+              --user ${{ needs.docker_user.outputs.uid }}:${{ needs.docker_user.outputs.gid }} \
+              -v ${{ github.workspace }}:${{ env.MOUNT_PATH_IN_CONTAINER }} \
+              -d --rm ${{ env.BASE_DOCKER_IMAGE }} \
+              ${{ env.MOUNT_PATH_IN_CONTAINER }}/p2pcp \
+              -compress-type none -src ${{ env.MOUNT_PATH_IN_CONTAINER }}/src
+
+          # p2pcp peer run
+          ./parallel -j0 \
+              docker run --name {1} --network ${{ job.container.network }} \
+                  --user ${{ needs.docker_user.outputs.uid }}:${{ needs.docker_user.outputs.gid }} \
+                  -v ${{ github.workspace }}:${{ env.MOUNT_PATH_IN_CONTAINER }} \
+                  -i --rm ${{ env.BASE_DOCKER_IMAGE }} \
+                  ${{ env.MOUNT_PATH_IN_CONTAINER }}/p2pcp \
+                  -compress-type none -exit-complete \
+                  -src ${{ env.MOUNT_PATH_IN_CONTAINER }}/src \
+                  -dst ${{ env.MOUNT_PATH_IN_CONTAINER }}/dst{#} -peer-list {2} 2> /dev/null \
+              ::: ${PEER_ARRAY[@]} ::: ${PEER_LIST}
+
+          # p2pcp seeder stop
+          docker rm -f ${SEEDER}
+
+      - name: get src checksum
+        id: src-checksum
+        run: echo "CHECKSUM=$(test/create_checksum.sh src/)" >> $GITHUB_OUTPUT
+
+      - name: diff checksum
+        run: |
+          for i in $(seq ${{ env.PEER_COUNT }}); do
+            DST_CHECKSUM=$(test/create_checksum.sh dst$i/)
+            if [ ! "${{ steps.src-checksum.outputs.CHECKSUM }}" = "$DST_CHECKSUM" ]; then
+              exit 1
+            fi
+          done
+
+  src_and_peer_zstd_test:
+    runs-on: [self-hosted]
+    needs: [docker_user, get_gnu_parallel, build, create_random]
+    container:
+      image: ubuntu:18.04
+      options: >-
+        --user ${{ needs.docker_user.outputs.uid }}:${{ needs.docker_user.outputs.gid }}
+        -v "/usr/bin/docker":"/usr/bin/docker"
+    steps:
+      - name: cleanup
+        run: rm -rf *
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: p2pcp-bin
+          path: ./
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: p2pcp-src
+          path: src/
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: p2pcp-test
+          path: test/
+
+      - uses: actions/download-artifact@v2
+        with:
+          name: gnu-parallel
+          path: ./
+
+      - name: chmod downloaded files
+        run: |
+          chmod +x p2pcp
+          chmod +x parallel
+          chmod +x -R test/
+
+          chmod 600 src/data/1k_rand_file_001
+          chmod 601 src/data/1k_rand_file_002
+          chmod 602 src/data/1k_rand_file_003
+          chmod 603 src/data/1k_rand_file_004
+          chmod 604 src/data/1k_rand_file_005
+          chmod 605 src/data/1k_rand_file_006
+          chmod 606 src/data/1k_rand_file_007
+          chmod 607 src/data/1k_rand_file_008
+          chmod 610 src/data/1k_rand_file_009
+          chmod 620 src/data/1k_rand_file_010
+          chmod 630 src/data/1k_rand_file_011
+          chmod 640 src/data/1k_rand_file_012
+          chmod 650 src/data/1k_rand_file_013
+          chmod 660 src/data/1k_rand_file_014
+          chmod 670 src/data/1k_rand_file_015
+          chmod 400 src/data/1k_rand_file_016
+          chmod 500 src/data/1k_rand_file_017
+          chmod 600 src/data/1k_rand_file_018
+          chmod 700 src/data/1k_rand_file_019
+
+      - name: run p2pcp
+        shell: bash
+        run: |
+          SEEDER="p2pcp_seeder_$(mktemp --dry-run XXXXXXXXXX)"
+          PEER_LIST="${SEEDER}:10090"
+          PEER_ARRAY=
+          for i in $(seq ${{ env.PEER_COUNT }}); do
+            P=p2pcp_peer_$(mktemp --dry-run XXXXXXXXXX)
+            PEER_ARRAY+=($P)
+            PEER_LIST=${PEER_LIST},$P:10090
+          done
+
+          # p2pcp seeder run
+          docker run --name ${SEEDER} --network ${{ job.container.network }} \
+              --user ${{ needs.docker_user.outputs.uid }}:${{ needs.docker_user.outputs.gid }} \
+              -v ${{ github.workspace }}:${{ env.MOUNT_PATH_IN_CONTAINER }} \
+              -d --rm ${{ env.BASE_DOCKER_IMAGE }} \
+              ${{ env.MOUNT_PATH_IN_CONTAINER }}/p2pcp \
+              -compress-type zstd -src ${{ env.MOUNT_PATH_IN_CONTAINER }}/src
+
+          # p2pcp peer run
+          ./parallel -j0 \
+              docker run --name {1} --network ${{ job.container.network }} \
+                  --user ${{ needs.docker_user.outputs.uid }}:${{ needs.docker_user.outputs.gid }} \
+                  -v ${{ github.workspace }}:${{ env.MOUNT_PATH_IN_CONTAINER }} \
+                  -i --rm ${{ env.BASE_DOCKER_IMAGE }} \
+                  ${{ env.MOUNT_PATH_IN_CONTAINER }}/p2pcp \
+                  -compress-type zstd -exit-complete \
+                  -src ${{ env.MOUNT_PATH_IN_CONTAINER }}/src \
+                  -dst ${{ env.MOUNT_PATH_IN_CONTAINER }}/dst{#} -peer-list {2} 2> /dev/null \
+              ::: ${PEER_ARRAY[@]} ::: ${PEER_LIST}
+
+          # p2pcp seeder stop
+          docker rm -f ${SEEDER}
+
+      - name: get src checksum
+        id: src-checksum
+        run: echo "CHECKSUM=$(test/create_checksum.sh src/)" >> $GITHUB_OUTPUT
+
+      - name: diff checksum
+        run: |
+          for i in $(seq ${{ env.PEER_COUNT }}); do
+            DST_CHECKSUM=$(test/create_checksum.sh dst$i/)
+            if [ ! "${{ steps.src-checksum.outputs.CHECKSUM }}" = "$DST_CHECKSUM" ]; then
+              exit 1
+            fi
+          done

@@ -1,0 +1,44 @@
+name: Create pre-release
+
+on:
+  push:
+    branches: [main]
+
+env:
+  GO_VERSION: 1.19
+
+jobs:
+  new_release:
+    runs-on: [self-hosted]
+    steps:
+      - name: cleanup
+        run: rm -rf *
+
+      - name: git checkout
+        uses: actions/checkout@v2
+        with:
+          submodules: true
+
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Build
+        run: make
+
+      - id: version
+        run: echo VERSION=`./p2pcp -version | sed 's/p2pcp-//g'` >> $GITHUB_OUTPUT
+
+      - name: make artifacts
+        run: |
+          chmod +x p2pcp
+          tar cvfz p2pcp-${{ steps.version.outputs.VERSION }}.tar.gz p2pcp
+          zip p2pcp-${{ steps.version.outputs.VERSION }}.zip p2pcp
+
+      - uses: ncipollo/release-action@v1
+        with:
+          name: p2pcp-${{ steps.version.outputs.VERSION }}
+          tag: ${{ steps.version.outputs.VERSION }}
+          artifacts: p2pcp-${{ steps.version.outputs.VERSION }}.tar.gz, p2pcp-${{ steps.version.outputs.VERSION }}.zip
+          prerelease: true

@@ -1,0 +1,4 @@
+github.com/DataDog/zstd v1.4.6-0.20200817201156-4b8fdbae0382 h1:3d3XZpl6gGwel05l7smVJJ+Ro/zAZLnj4mlK4uwtv3U=
+github.com/DataDog/zstd v1.4.6-0.20200817201156-4b8fdbae0382/go.mod h1:1jcaCB/ufaK+sKp1NBhlGmpz41jOoPQ35bpF36t7BBo=
+github.com/google/uuid v1.2.0 h1:qJYtXnJRWmpe7m/3XlyhrsLrEURqHRM2kxzoxXqyUDs=
+github.com/google/uuid v1.2.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=

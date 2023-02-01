@@ -1,0 +1,7 @@
+.go
+.vscode
+opt/zstd*
+pkg
+p2pcp
+*.tar.bz2
+*~
