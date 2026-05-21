@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: p2pcp-peer
+  namespace: p2pcp
+  labels:
+    app: p2pcp-peer
+spec:
+  replicas: 10
+  selector:
+    matchLabels:
+      app: p2pcp-peer
+  template:
+    metadata:
+      labels:
+        app: p2pcp-peer
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 500
+        fsGroup: 500
+      initContainers:
+      - name: init-p2pcp-peer
+        image: p2pcp-image:k8s-test
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+        command: ["bash", "-c"]
+        args:
+        - |
+          /usr/bin/p2pcp -peer-list p2pcp-seeder:10090 -peer-list-a p2pcp-peer.p2pcp.svc.cluster.local -dst /mnt/src -exit-complete -verbose
+        volumeMounts:
+        - name: src-volume
+          mountPath: /mnt/src
+      containers:
+      - name: p2pcp-peer
+        image: p2pcp-image:k8s-test
+        imagePullPolicy: IfNotPresent
+        securityContext:
+          capabilities:
+            drop:
+            - ALL
+        ports:
+        - containerPort: 10090
+          protocol: TCP
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+        readinessProbe:
+          httpGet:
+            path: /version
+            port: 10090
+          initialDelaySeconds: 1
+          periodSeconds: 2
+          timeoutSeconds: 1
+        command: ["bash", "-c"]
+        args:
+        - |
+          exec /usr/bin/p2pcp -src /mnt/src -listen-addr 0.0.0.0:10090 -verbose
+        volumeMounts:
+        - name: src-volume
+          mountPath: /mnt/src
+      volumes:
+      - name: src-volume
+        emptyDir: {}

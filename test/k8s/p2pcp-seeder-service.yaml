@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: p2pcp-seeder
+  namespace: p2pcp
+spec:
+  clusterIP: None
+  selector:
+    app: p2pcp-seeder
+  ports:
+  - port: 10090
+    targetPort: 10090

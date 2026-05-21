@@ -1,7 +1,15 @@
-.go
-.vscode
-opt/zstd*
-pkg
+# Build output
 p2pcp
-*.tar.bz2
-*~
+
+# Coverage
+src/coverage.md
+
+# Test artifacts
+test_src/
+test_dst/
+src/test-output.json
+
+# Test tools (downloaded by test/k8s_test.sh)
+test/kind
+test/kind.kubeconfig
+test/kubectl

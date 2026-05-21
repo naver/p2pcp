@@ -1,0 +1,96 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: p2pcp-seeder
+  namespace: p2pcp
+  labels:
+    app: p2pcp-seeder
+spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 500
+    fsGroup: 500
+  restartPolicy: Never
+  containers:
+  - name: p2pcp-seeder
+    image: p2pcp-image:k8s-test
+    imagePullPolicy: IfNotPresent
+    securityContext:
+      capabilities:
+        drop:
+        - ALL
+    ports:
+    - containerPort: 10090
+      protocol: TCP
+    resources:
+      requests:
+        cpu: "1000m"
+        memory: "1Gi"
+      limits:
+        cpu: "2000m"
+        memory: "2Gi"
+    readinessProbe:
+      httpGet:
+        path: /version
+        port: 10090
+      initialDelaySeconds: 5
+      periodSeconds: 2
+      timeoutSeconds: 1
+    volumeMounts:
+    - name: src-volume
+      mountPath: /mnt/src
+    command: ["bash", "-c"]
+    args:
+    - |
+      set -e
+      TARGET_DIR=/mnt/src
+
+      # Create directories
+      mkdir -p "$TARGET_DIR/big" "$TARGET_DIR/tiny" "$TARGET_DIR/empty"
+
+      # Create large sparse files with random data at the beginning
+      for i in 1 2 3 4; do
+        file="$TARGET_DIR/big/256m_rand_file_$(printf "%03d" "$i")"
+        truncate -s 256M "$file"
+        head -c 1M < /dev/urandom | dd of="$file" conv=notrunc status=none
+      done
+
+      # Create small random files
+      i=1
+      while [ "$i" -le 1024 ]; do
+        head -c 16384 < /dev/urandom > "$TARGET_DIR/tiny/16k_rand_file_$(printf "%03d" "$i")"
+        i=$((i + 1))
+      done
+
+      # Set various permissions to test permission preservation
+      chmod 600 "$TARGET_DIR/tiny/16k_rand_file_100"
+      chmod 601 "$TARGET_DIR/tiny/16k_rand_file_101"
+      chmod 602 "$TARGET_DIR/tiny/16k_rand_file_102"
+      chmod 603 "$TARGET_DIR/tiny/16k_rand_file_103"
+      chmod 604 "$TARGET_DIR/tiny/16k_rand_file_104"
+      chmod 605 "$TARGET_DIR/tiny/16k_rand_file_105"
+      chmod 606 "$TARGET_DIR/tiny/16k_rand_file_106"
+      chmod 607 "$TARGET_DIR/tiny/16k_rand_file_107"
+      chmod 610 "$TARGET_DIR/tiny/16k_rand_file_108"
+      chmod 620 "$TARGET_DIR/tiny/16k_rand_file_109"
+      chmod 630 "$TARGET_DIR/tiny/16k_rand_file_110"
+      chmod 640 "$TARGET_DIR/tiny/16k_rand_file_111"
+      chmod 650 "$TARGET_DIR/tiny/16k_rand_file_112"
+      chmod 660 "$TARGET_DIR/tiny/16k_rand_file_113"
+      chmod 670 "$TARGET_DIR/tiny/16k_rand_file_114"
+      chmod 400 "$TARGET_DIR/tiny/16k_rand_file_115"
+      chmod 500 "$TARGET_DIR/tiny/16k_rand_file_116"
+      chmod 600 "$TARGET_DIR/tiny/16k_rand_file_117"
+      chmod 700 "$TARGET_DIR/tiny/16k_rand_file_118"
+
+      # Create edge cases
+      touch "$TARGET_DIR/zero_length"
+      ln -s ../big/256m_rand_file_001 "$TARGET_DIR/tiny/sym_link"
+
+      echo "Test data created successfully"
+
+      # Start p2pcp in seeder mode
+      exec /usr/bin/p2pcp -src /mnt/src -listen-addr 0.0.0.0:10090 -verbose
+  volumes:
+  - name: src-volume
+    emptyDir: {}

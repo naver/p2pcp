@@ -1,44 +1,60 @@
-name: Create pre-release
+name: Release
 
 on:
-  push:
-    branches: [main]
-
-env:
-  GO_VERSION: 1.19
+  release:
+    types: [published]
 
 jobs:
-  new_release:
-    runs-on: [self-hosted]
+  download-ci-artifact:
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
     steps:
-      - name: cleanup
-        run: rm -rf *
-
-      - name: git checkout
-        uses: actions/checkout@v2
+      - name: Download CI artifact
+        uses: dawidd6/action-download-artifact@v14
         with:
-          submodules: true
+          workflow: ci.yml
+          commit: ${{ github.sha }}
+          name: p2pcp-binary
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Set up Go
-        uses: actions/setup-go@v2
+      # Re-upload CI artifact for use in this workflow
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v6
         with:
-          go-version: ${{ env.GO_VERSION }}
+          name: p2pcp-binary
+          path: p2pcp
 
-      - name: Build
-        run: make
+  deploy:
+    needs: [download-ci-artifact]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
 
-      - id: version
-        run: echo VERSION=`./p2pcp -version | sed 's/p2pcp-//g'` >> $GITHUB_OUTPUT
+      - name: Download binary
+        uses: actions/download-artifact@v7
+        with:
+          name: p2pcp-binary
 
-      - name: make artifacts
+      - name: Set executable permission
+        run: chmod +x p2pcp
+
+      - name: Create release archive
         run: |
-          chmod +x p2pcp
-          tar cvfz p2pcp-${{ steps.version.outputs.VERSION }}.tar.gz p2pcp
-          zip p2pcp-${{ steps.version.outputs.VERSION }}.zip p2pcp
+          RELEASE_VERSION=${{ github.event.release.tag_name }}
+          PACKAGE_NAME="p2pcp-${RELEASE_VERSION}-linux-amd64"
+          mkdir -p ${PACKAGE_NAME}
+          cp p2pcp README.md LICENSE ${PACKAGE_NAME}/
+          tar czf ${PACKAGE_NAME}.tar.gz ${PACKAGE_NAME}
 
-      - uses: ncipollo/release-action@v1
-        with:
-          name: p2pcp-${{ steps.version.outputs.VERSION }}
-          tag: ${{ steps.version.outputs.VERSION }}
-          artifacts: p2pcp-${{ steps.version.outputs.VERSION }}.tar.gz, p2pcp-${{ steps.version.outputs.VERSION }}.zip
-          prerelease: true
+      - name: Upload release asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ github.event.release.tag_name }} \
+            p2pcp-${{ github.event.release.tag_name }}-linux-amd64.tar.gz \
+            --repo ${{ github.repository }} \
+            --clobber

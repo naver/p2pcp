@@ -1,0 +1,93 @@
+name: CI
+
+on:
+  push:
+    branches: ['*']
+  pull_request:
+    branches: [main]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    container: golang:1.24
+    timeout-minutes: 10
+    steps:
+      - name: Install dependencies
+        run: |
+          apt-get update -qq && apt-get install -y -qq jq
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Fix git safe directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Check format
+        run: make fmt-check
+
+      - name: Build
+        run: make BUILD_VERSION=${BUILD_SHA:0:7}
+        shell: bash
+        env:
+          BUILD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Unit tests
+        run: |
+          # Run tests as non-root user to properly test file permission handling
+          # (root can bypass file permissions, causing permission-related tests to fail)
+          useradd -m testuser
+          chown testuser:testuser src
+          runuser -u testuser -- make test
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: p2pcp-binary
+          path: p2pcp
+
+      - name: Find comment in PR for coverage report
+        if: github.event_name == 'pull_request'
+        uses: peter-evans/find-comment@v4
+        id: fc
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: "github-actions[bot]"
+          body-includes: |
+            ## Test coverage
+
+      - name: Update coverage report to PR
+        if: github.event_name == 'pull_request'
+        uses: peter-evans/create-or-update-comment@v5
+        with:
+          comment-id: ${{ steps.fc.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body-path: ./src/coverage.md
+          edit-mode: replace
+
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [ci]
+    strategy:
+      matrix:
+        test: [local, peer, command]
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ncat
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download binary artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: p2pcp-binary
+
+      - name: Set executable permission
+        run: chmod +x p2pcp
+
+      - name: Run e2e-${{ matrix.test }} test
+        run: |
+          test/create_random_data.sh test_src
+          test/${{ matrix.test }}_test.sh test_src/ test_dst/
