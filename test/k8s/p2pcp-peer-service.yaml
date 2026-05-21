@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: p2pcp-peer
+  namespace: p2pcp
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app: p2pcp-peer
+  ports:
+  - name: peer
+    protocol: TCP
+    port: 10090
+    targetPort: 10090
