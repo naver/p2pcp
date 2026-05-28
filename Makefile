@@ -27,14 +27,36 @@ LDFLAGS += -X $(PACKAGE)/version.MajorVersion=$(MAJOR_VERSION) \
 
 GO_BUILD = cd src && CGO_ENABLED=1 $(GO) build -trimpath $(BUILD_FLAG)
 
+BUILD_TAGS ?= netgo,osusergo
+
 $(TARGET): $(SRC) Makefile
-	$(GO_BUILD) -tags netgo,osusergo -o ../$(TARGET) -ldflags '-extldflags "-static" $(LDFLAGS)'
+	$(GO_BUILD) -tags $(BUILD_TAGS) -o ../$(TARGET) -ldflags '-extldflags "-static" $(LDFLAGS)'
 
 dynamic: $(SRC) Makefile
 	$(GO_BUILD) -o ../$(TARGET) -ldflags '$(LDFLAGS)'
 
 image:
 	$(CONTAINER_ENGINE) build --build-arg BUILD_VERSION=$(BUILD_VERSION) -t $(TARGET):latest .
+
+GO_LICENSES_VERSION = v1.6.0
+
+_notice:
+	@cd src && $(GO) run github.com/google/go-licenses@$(GO_LICENSES_VERSION) report ./... \
+		--ignore github.com/naver/p2pcp \
+		--template ../scripts/notice.tpl \
+		> ../$(OUTPUT) 2>/dev/null
+
+notice:
+	@$(MAKE) _notice OUTPUT=NOTICE
+	@echo "NOTICE regenerated."
+
+notice-check:
+	@$(MAKE) _notice OUTPUT=NOTICE.tmp
+	@diff -u NOTICE NOTICE.tmp >/dev/null 2>&1 || \
+		(echo "NOTICE is out of date. Run 'make notice' and commit the changes."; \
+		 diff -u NOTICE NOTICE.tmp; \
+		 rm -f NOTICE.tmp; exit 1)
+	@rm -f NOTICE.tmp
 
 fmt:
 	cd src && $(GO) fmt ./...

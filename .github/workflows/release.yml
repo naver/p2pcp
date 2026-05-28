@@ -9,20 +9,23 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       actions: read
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
     steps:
       - name: Download CI artifact
         uses: dawidd6/action-download-artifact@v14
         with:
           workflow: ci.yml
           commit: ${{ github.sha }}
-          name: p2pcp-binary
+          name: p2pcp-binary-${{ matrix.arch }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       # Re-upload CI artifact for use in this workflow
       - name: Upload binary artifact
         uses: actions/upload-artifact@v6
         with:
-          name: p2pcp-binary
+          name: p2pcp-binary-${{ matrix.arch }}
           path: p2pcp
 
   deploy:
@@ -30,6 +33,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    strategy:
+      matrix:
+        arch: [amd64, arm64]
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -37,7 +43,7 @@ jobs:
       - name: Download binary
         uses: actions/download-artifact@v7
         with:
-          name: p2pcp-binary
+          name: p2pcp-binary-${{ matrix.arch }}
 
       - name: Set executable permission
         run: chmod +x p2pcp
@@ -45,9 +51,9 @@ jobs:
       - name: Create release archive
         run: |
           RELEASE_VERSION=${{ github.event.release.tag_name }}
-          PACKAGE_NAME="p2pcp-${RELEASE_VERSION}-linux-amd64"
+          PACKAGE_NAME="p2pcp-${RELEASE_VERSION}-linux-${{ matrix.arch }}"
           mkdir -p ${PACKAGE_NAME}
-          cp p2pcp README.md LICENSE ${PACKAGE_NAME}/
+          cp p2pcp README.md LICENSE NOTICE ${PACKAGE_NAME}/
           tar czf ${PACKAGE_NAME}.tar.gz ${PACKAGE_NAME}
 
       - name: Upload release asset
@@ -55,6 +61,48 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh release upload ${{ github.event.release.tag_name }} \
-            p2pcp-${{ github.event.release.tag_name }}-linux-amd64.tar.gz \
+            p2pcp-${{ github.event.release.tag_name }}-linux-${{ matrix.arch }}.tar.gz \
             --repo ${{ github.repository }} \
             --clobber
+
+  build-and-push-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            BUILD_VERSION=${{ github.event.release.tag_name }}

@@ -25,6 +25,9 @@ jobs:
       - name: Check format
         run: make fmt-check
 
+      - name: Check NOTICE
+        run: make notice-check
+
       - name: Build
         run: make BUILD_VERSION=${BUILD_SHA:0:7}
         shell: bash
@@ -42,7 +45,7 @@ jobs:
       - name: Upload binary artifact
         uses: actions/upload-artifact@v6
         with:
-          name: p2pcp-binary
+          name: p2pcp-binary-amd64
           path: p2pcp
 
       - name: Find comment in PR for coverage report
@@ -64,6 +67,33 @@ jobs:
           body-path: ./src/coverage.md
           edit-mode: replace
 
+  build-arm64:
+    runs-on: ubuntu-24.04-arm
+    container: golang:1.24
+    timeout-minutes: 10
+    steps:
+      - name: Install dependencies
+        run: |
+          apt-get update -qq && apt-get install -y -qq jq
+
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Fix git safe directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Build
+        run: make BUILD_VERSION=${BUILD_SHA:0:7}
+        shell: bash
+        env:
+          BUILD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: p2pcp-binary-arm64
+          path: p2pcp
+
   e2e:
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -82,7 +112,7 @@ jobs:
       - name: Download binary artifact
         uses: actions/download-artifact@v7
         with:
-          name: p2pcp-binary
+          name: p2pcp-binary-amd64
 
       - name: Set executable permission
         run: chmod +x p2pcp
