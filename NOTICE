@@ -1,0 +1,40 @@
+p2pcp
+Copyright 2019-2026 NAVER Corp.
+
+This product includes software developed at
+NAVER Corp. (https://www.navercorp.com/).
+
+
+The following components are included in this product:
+
+github.com/google/uuid
+Licensed under the BSD-3-Clause License
+https://github.com/google/uuid/blob/v1.6.0/LICENSE
+
+github.com/klauspost/cpuid/v2
+Licensed under the MIT License
+https://github.com/klauspost/cpuid/blob/v2.3.0/LICENSE
+
+github.com/valyala/gozstd
+Licensed under the MIT License
+https://github.com/valyala/gozstd/blob/v1.23.2/LICENSE
+
+github.com/zeebo/xxh3
+Licensed under the BSD-2-Clause License
+https://github.com/zeebo/xxh3/blob/v1.0.2/LICENSE
+
+go.uber.org/multierr
+Licensed under the MIT License
+https://github.com/uber-go/multierr/blob/v1.11.0/LICENSE.txt
+
+go.uber.org/zap
+Licensed under the MIT License
+https://github.com/uber-go/zap/blob/v1.27.0/LICENSE
+
+golang.org/x/sync/singleflight
+Licensed under the BSD-3-Clause License
+https://cs.opensource.google/go/x/sync/+/v0.19.0:LICENSE
+
+facebook/zstd (statically linked via gozstd v1.23.2)
+Dual-licensed under BSD-3-Clause OR GPLv2 (BSD-3-Clause selected)
+https://github.com/facebook/zstd
