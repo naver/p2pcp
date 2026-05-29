@@ -82,24 +82,27 @@
               <stop offset="100%" stop-color="#1e293b" />
             </radialGradient>
           </defs>
+          <!-- links (bottom layer) -->
+          <g stroke="#475569" stroke-width="1.2" fill="none">
+            <line x1="160" y1="110" x2="60"  y2="55"  />
+            <line x1="160" y1="110" x2="160" y2="30"  />
+            <line x1="160" y1="110" x2="260" y2="55"  />
+            <line x1="160" y1="110" x2="60"  y2="165" />
+            <line x1="160" y1="110" x2="160" y2="190" />
+            <line x1="160" y1="110" x2="260" y2="165" />
+          </g>
+          <!-- peripheral nodes -->
+          <g fill="#0f172a" stroke="#334155">
+            <circle cx="60"  cy="55"  r="13" />
+            <circle cx="160" cy="30"  r="13" />
+            <circle cx="260" cy="55"  r="13" />
+            <circle cx="60"  cy="165" r="13" />
+            <circle cx="160" cy="190" r="13" />
+            <circle cx="260" cy="165" r="13" />
+          </g>
+          <!-- source (top layer, covers the links) -->
           <circle cx="160" cy="110" r="26" fill="url(#srcGrad)" stroke="#64748b" />
           <text x="160" y="115" text-anchor="middle" class="diagram-label">SRC</text>
-          <g stroke="#475569" stroke-width="1.2" fill="none">
-            <line x1="160" y1="110" x2="40"  y2="40"  />
-            <line x1="160" y1="110" x2="160" y2="30"  />
-            <line x1="160" y1="110" x2="280" y2="40"  />
-            <line x1="160" y1="110" x2="40"  y2="180" />
-            <line x1="160" y1="110" x2="160" y2="190" />
-            <line x1="160" y1="110" x2="280" y2="180" />
-          </g>
-          <g fill="#0f172a" stroke="#334155">
-            <circle cx="40"  cy="40"  r="12" />
-            <circle cx="160" cy="30"  r="12" />
-            <circle cx="280" cy="40"  r="12" />
-            <circle cx="40"  cy="180" r="12" />
-            <circle cx="160" cy="190" r="12" />
-            <circle cx="280" cy="180" r="12" />
-          </g>
         </svg>
       </figure>
 
@@ -110,25 +113,29 @@
         </figcaption>
         <svg viewBox="0 0 320 220" class="diagram" aria-hidden="true">
           <g stroke="var(--accent)" stroke-opacity="0.55" stroke-width="1.2" fill="none">
+            <!-- hub links to center -->
+            <line x1="160" y1="110" x2="60"  y2="55"  />
+            <line x1="160" y1="110" x2="160" y2="30"  />
+            <line x1="160" y1="110" x2="260" y2="55"  />
+            <line x1="160" y1="110" x2="60"  y2="165" />
+            <line x1="160" y1="110" x2="160" y2="190" />
+            <line x1="160" y1="110" x2="260" y2="165" />
+            <!-- outer ring (peer-to-peer) -->
             <line x1="60"  y1="55"  x2="160" y2="30"  />
             <line x1="160" y1="30"  x2="260" y2="55"  />
             <line x1="260" y1="55"  x2="260" y2="165" />
             <line x1="260" y1="165" x2="160" y2="190" />
             <line x1="160" y1="190" x2="60"  y2="165" />
             <line x1="60"  y1="165" x2="60"  y2="55"  />
-            <line x1="60"  y1="55"  x2="260" y2="165" />
-            <line x1="260" y1="55"  x2="60"  y2="165" />
-            <line x1="60"  y1="55"  x2="260" y2="55"  />
-            <line x1="60"  y1="165" x2="260" y2="165" />
-            <line x1="160" y1="30"  x2="160" y2="190" />
           </g>
           <g class="peer-nodes">
             <circle cx="60"  cy="55"  r="13" />
             <circle cx="160" cy="30"  r="13" />
             <circle cx="260" cy="55"  r="13" />
-            <circle cx="260" cy="165" r="13" />
-            <circle cx="160" cy="190" r="13" />
             <circle cx="60"  cy="165" r="13" />
+            <circle cx="160" cy="190" r="13" />
+            <circle cx="260" cy="165" r="13" />
+            <circle cx="160" cy="110" r="15" />
           </g>
         </svg>
       </figure>
@@ -157,12 +164,13 @@
       </div>
       <div class="stat">
         <div class="stat-num">&lt;1<span class="stat-unit">min</span></div>
-        <div class="stat-label">from a single 10 GbE seed</div>
+        <div class="stat-label">from a single 10 GbE seed, zstd on</div>
       </div>
     </div>
 
     <p class="footnote">
-      Reference deployment inside NAVER. Numbers vary with topology, chunk size, and storage characteristics.
+      Reference deployment inside NAVER, with zstd compression enabled. Numbers vary with
+      topology, chunk size, compressibility of the data, and storage characteristics.
     </p>
   </section>
 

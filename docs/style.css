@@ -313,7 +313,7 @@ code, pre {
 .diagram-label {
   font-family: 'JetBrains Mono', monospace;
   font-size: 10px;
-  fill: var(--text);
+  fill: #f1f5f9;
   font-weight: 600;
 }
 .peer-nodes circle {
@@ -327,6 +327,7 @@ code, pre {
 .peer-nodes circle:nth-child(4) { animation-delay: 1.2s; }
 .peer-nodes circle:nth-child(5) { animation-delay: 1.6s; }
 .peer-nodes circle:nth-child(6) { animation-delay: 2.0s; }
+.peer-nodes circle:nth-child(7) { animation-delay: 1.0s; }
 @keyframes pulse {
   0%, 100% { filter: drop-shadow(0 0 0 var(--accent-glow)); }
   50%      { filter: drop-shadow(0 0 6px var(--accent)); }
