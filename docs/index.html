@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>p2pcp — High-performance P2P file replication</title>
+  <meta name="description" content="Distribute a single data source to many nodes concurrently. Throughput scales with peers. Kubernetes-friendly CLI by NAVER." />
+  <meta property="og:title" content="p2pcp" />
+  <meta property="og:description" content="High-performance P2P file replication. Throughput scales with peers." />
+  <meta property="og:type" content="website" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <nav class="nav">
+    <a class="brand" href="#top">
+      <span class="brand-mark">⇄</span>
+      <span>p2pcp</span>
+    </a>
+    <div class="nav-links">
+      <a href="#how">How it works</a>
+      <a href="#features">Features</a>
+      <a href="#quickstart">Quick start</a>
+      <a class="nav-github" href="https://github.com/naver/p2pcp">GitHub ↗</a>
+    </div>
+  </nav>
+
+  <header class="hero" id="top">
+    <div class="hero-inner">
+      <div class="badges">
+        <a class="badge-shield" href="https://github.com/naver/p2pcp/releases/latest" aria-label="Latest release">
+          <img src="https://img.shields.io/github/v/release/naver/p2pcp?style=flat-square&label=release&color=38bdf8&labelColor=131a36" alt="Latest release" />
+        </a>
+        <span class="badge">Apache-2.0</span>
+        <span class="badge">by NAVER</span>
+      </div>
+      <h1 class="title">
+        Move a terabyte to <em>a hundred nodes</em>.<br />
+        Without melting your storage.
+      </h1>
+      <p class="subtitle">
+        p2pcp is a peer-to-peer file replication CLI. The more peers join,
+        the faster the transfer goes — because every peer becomes a source.
+        One static binary, zero companion services.
+      </p>
+
+      <div class="terminal" role="region" aria-label="Example command">
+        <div class="terminal-bar">
+          <span class="dot dot-r"></span>
+          <span class="dot dot-y"></span>
+          <span class="dot dot-g"></span>
+          <span class="terminal-title">bash</span>
+        </div>
+        <pre class="terminal-body"><code><span class="prompt">$</span> p2pcp <span class="flag">-dst</span> /data <span class="flag">-peer-list</span> peer1,peer2,peer3 <span class="flag">-exit-complete</span></code></pre>
+      </div>
+
+      <div class="cta">
+        <a class="btn btn-primary" href="https://github.com/naver/p2pcp">View on GitHub</a>
+        <a class="btn btn-ghost" href="#quickstart">Quick start →</a>
+      </div>
+    </div>
+  </header>
+
+  <section class="section" id="how">
+    <div class="section-head">
+      <p class="eyebrow">How it works</p>
+      <h2>One source is a bottleneck. <span class="muted">A hundred peers aren't.</span></h2>
+    </div>
+
+    <div class="compare">
+      <figure class="compare-card">
+        <figcaption>
+          <h3>Traditional</h3>
+          <p>Every node pulls from one storage. Bandwidth divides as nodes pile on.</p>
+        </figcaption>
+        <svg viewBox="0 0 320 220" class="diagram" aria-hidden="true">
+          <defs>
+            <radialGradient id="srcGrad" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#475569" />
+              <stop offset="100%" stop-color="#1e293b" />
+            </radialGradient>
+          </defs>
+          <!-- links (bottom layer) -->
+          <g stroke="#475569" stroke-width="1.2" fill="none">
+            <line x1="160" y1="110" x2="60"  y2="55"  />
+            <line x1="160" y1="110" x2="160" y2="30"  />
+            <line x1="160" y1="110" x2="260" y2="55"  />
+            <line x1="160" y1="110" x2="60"  y2="165" />
+            <line x1="160" y1="110" x2="160" y2="190" />
+            <line x1="160" y1="110" x2="260" y2="165" />
+          </g>
+          <!-- peripheral nodes -->
+          <g fill="#0f172a" stroke="#334155">
+            <circle cx="60"  cy="55"  r="13" />
+            <circle cx="160" cy="30"  r="13" />
+            <circle cx="260" cy="55"  r="13" />
+            <circle cx="60"  cy="165" r="13" />
+            <circle cx="160" cy="190" r="13" />
+            <circle cx="260" cy="165" r="13" />
+          </g>
+          <!-- source (top layer, covers the links) -->
+          <circle cx="160" cy="110" r="26" fill="url(#srcGrad)" stroke="#64748b" />
+          <text x="160" y="115" text-anchor="middle" class="diagram-label">SRC</text>
+        </svg>
+      </figure>
+
+      <figure class="compare-card highlight">
+        <figcaption>
+          <h3>p2pcp</h3>
+          <p>Every peer shares chunks. Throughput grows as the fleet grows.</p>
+        </figcaption>
+        <svg viewBox="0 0 320 220" class="diagram" aria-hidden="true">
+          <g stroke="var(--accent)" stroke-opacity="0.55" stroke-width="1.2" fill="none">
+            <!-- hub links to center -->
+            <line x1="160" y1="110" x2="60"  y2="55"  />
+            <line x1="160" y1="110" x2="160" y2="30"  />
+            <line x1="160" y1="110" x2="260" y2="55"  />
+            <line x1="160" y1="110" x2="60"  y2="165" />
+            <line x1="160" y1="110" x2="160" y2="190" />
+            <line x1="160" y1="110" x2="260" y2="165" />
+            <!-- outer ring (peer-to-peer) -->
+            <line x1="60"  y1="55"  x2="160" y2="30"  />
+            <line x1="160" y1="30"  x2="260" y2="55"  />
+            <line x1="260" y1="55"  x2="260" y2="165" />
+            <line x1="260" y1="165" x2="160" y2="190" />
+            <line x1="160" y1="190" x2="60"  y2="165" />
+            <line x1="60"  y1="165" x2="60"  y2="55"  />
+          </g>
+          <g class="peer-nodes">
+            <circle cx="60"  cy="55"  r="13" />
+            <circle cx="160" cy="30"  r="13" />
+            <circle cx="260" cy="55"  r="13" />
+            <circle cx="60"  cy="165" r="13" />
+            <circle cx="160" cy="190" r="13" />
+            <circle cx="260" cy="165" r="13" />
+            <circle cx="160" cy="110" r="15" />
+          </g>
+        </svg>
+      </figure>
+    </div>
+  </section>
+
+  <section class="section" id="scale">
+    <div class="section-head">
+      <p class="eyebrow">Built to scale</p>
+      <h2>Terabytes of source. Hundreds of peers. <span class="muted">Limited only by your network.</span></h2>
+    </div>
+
+    <p class="lead">
+      p2pcp is designed to fan out terabyte-class source data across hundreds of peer nodes — throughput grows as the fleet grows, bounded by your network rather than the tool.
+    </p>
+
+    <p class="proof-head">In production at NAVER</p>
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-num">100<span class="stat-unit">GiB+</span></div>
+        <div class="stat-label">source data per run</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">100<span class="stat-unit">nodes</span></div>
+        <div class="stat-label">replicated in parallel</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">&lt;1<span class="stat-unit">min</span></div>
+        <div class="stat-label">from a single 10 GbE seed, zstd on</div>
+      </div>
+    </div>
+
+    <p class="footnote">
+      Reference deployment inside NAVER, with zstd compression enabled. Numbers vary with
+      topology, chunk size, compressibility of the data, and storage characteristics.
+    </p>
+  </section>
+
+  <section class="section" id="features">
+    <div class="section-head">
+      <p class="eyebrow">Features</p>
+      <h2>All you need is a binary. <span class="muted">No master, no scheduler, no infrastructure to stand up.</span></h2>
+    </div>
+
+    <div class="grid">
+      <article class="card">
+        <div class="card-icon">▣</div>
+        <h3>Single static binary</h3>
+        <p>One Linux binary per node. No runtime deps, no daemon to keep alive, no companion control plane — drop it in and run.</p>
+      </article>
+      <article class="card">
+        <div class="card-icon">◉</div>
+        <h3>Same binary, every node</h3>
+        <p>Role set by flags: <code>-src</code> to seed, <code>-dst</code> to pull. No master, no scheduler, no manager process to keep alive.</p>
+      </article>
+      <article class="card">
+        <div class="card-icon">⌕</div>
+        <h3>Discovery without infrastructure</h3>
+        <p>A static <code>-peer-list a,b,c</code> works on day one. DNS SRV/A and HTTP registry are optional add-ons, never prerequisites.</p>
+      </article>
+      <article class="card">
+        <div class="card-icon">☸</div>
+        <h3>Kubernetes-native patterns</h3>
+        <p>Drops cleanly into an init container, sidecar, or DaemonSet. Point at a Headless Service FQDN and peers find each other via SRV/A — no operator, no CRD.</p>
+      </article>
+      <article class="card">
+        <div class="card-icon">⇡</div>
+        <h3>Throughput scales with peers</h3>
+        <p>Chunked parallel transfer between every peer. Aggregate bandwidth grows with the fleet rather than collapsing on the source.</p>
+      </article>
+      <article class="card">
+        <div class="card-icon">✓</div>
+        <h3>Verified &amp; tunable</h3>
+        <p>xxh3 digests per chunk, <code>-verify-on-complete</code>, optional zstd compression, tunable chunk size (8–128 MiB) and per-peer concurrency.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="section" id="quickstart">
+    <div class="section-head">
+      <p class="eyebrow">Quick start</p>
+      <h2>Three commands. Three nodes. Done.</h2>
+    </div>
+
+    <ol class="steps">
+      <li>
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <h3>Start a seeder</h3>
+          <p>One node holds the source and serves chunks.</p>
+          <pre class="code"><code><span class="prompt">seeder $</span> p2pcp <span class="flag">-src</span> /data/files</code></pre>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <h3>Pull from peers</h3>
+          <p>Each peer downloads from every other peer, in parallel. <code>seeder</code>, <code>peer1</code>, <code>peer2</code> are resolvable hostnames (or <code>host:port</code>) — pass the real ones for your fleet.</p>
+          <pre class="code"><code><span class="prompt">peer  $</span> p2pcp <span class="flag">-dst</span> /data/dst <span class="flag">-peer-list</span> seeder,peer1,peer2 <span class="flag">-exit-complete</span></code></pre>
+        </div>
+      </li>
+      <li>
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <h3>Or use DNS discovery</h3>
+          <p>Point at a Kubernetes headless service — peers find each other.</p>
+          <pre class="code"><code><span class="prompt">peer  $</span> p2pcp <span class="flag">-dst</span> /data/dst <span class="flag">-peer-list-srv</span> p2pcp.default.svc.cluster.local</code></pre>
+        </div>
+      </li>
+    </ol>
+
+    <p class="footnote">
+      Full CLI reference, tuning guide, and external-registry protocol in the
+      <a href="https://github.com/naver/p2pcp#readme">README</a>.
+    </p>
+  </section>
+
+  <section class="section" id="pattern">
+    <div class="section-head">
+      <p class="eyebrow">Kubernetes pattern</p>
+      <h2>Init pulls. Sidecar serves. <span class="muted">The next replica is even faster.</span></h2>
+    </div>
+
+    <p class="lead">
+      When a Deployment scales out, every new pod's init container pulls the dataset
+      from the seeder <em>and</em> every running peer in parallel. The sidecar then
+      keeps serving that data — so each successive replica reaches steady state faster
+      than the last.
+    </p>
+
+<pre class="code"><code><span class="comment"># deployment.yaml — excerpt</span>
+<span class="key">spec</span>:
+  <span class="key">template</span>:
+    <span class="key">spec</span>:
+      <span class="key">initContainers</span>:
+        - <span class="key">name</span>: p2pcp-init
+          <span class="key">image</span>: p2pcp:2
+          <span class="key">args</span>:
+            - <span class="flag">-dst</span>=/data
+            - <span class="flag">-peer-list</span>=seeder.default.svc.cluster.local       <span class="comment"># source of truth</span>
+            - <span class="flag">-peer-list-srv</span>=my-app.default.svc.cluster.local   <span class="comment"># sibling pods (Headless Service)</span>
+            - <span class="flag">-exit-complete</span>
+          <span class="key">volumeMounts</span>:
+            - { <span class="key">name</span>: data, <span class="key">mountPath</span>: /data }
+      <span class="key">containers</span>:
+        - <span class="key">name</span>: app
+          <span class="key">image</span>: my-app
+          <span class="key">volumeMounts</span>:
+            - { <span class="key">name</span>: data, <span class="key">mountPath</span>: /data, <span class="key">readOnly</span>: true }
+        - <span class="key">name</span>: p2pcp-sidecar
+          <span class="key">image</span>: p2pcp:2
+          <span class="key">args</span>: [<span class="flag">-src</span>=/data]                                          <span class="comment"># serve to next replicas</span>
+          <span class="key">volumeMounts</span>:
+            - { <span class="key">name</span>: data, <span class="key">mountPath</span>: /data, <span class="key">readOnly</span>: true }
+      <span class="key">volumes</span>:
+        - <span class="key">name</span>: data
+          <span class="key">emptyDir</span>: {}</code></pre>
+
+    <p class="footnote">
+      A Headless Service selecting the pods is required so SRV records resolve to sibling replicas.
+      The seeder can be any reachable host running <code>p2pcp -src</code> — a standalone pod, a
+      StatefulSet, or a node outside the cluster.
+    </p>
+  </section>
+
+  <footer class="footer">
+    <div class="footer-inner">
+      <div>
+        <span class="brand-mark">⇄</span>
+        <strong>p2pcp</strong>
+        <span class="muted">· Apache-2.0 · © NAVER Corp.</span>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/naver/p2pcp">GitHub</a>
+        <a href="https://github.com/naver/p2pcp/issues">Issues</a>
+        <a href="https://github.com/naver/p2pcp/blob/main/LICENSE">License</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>
