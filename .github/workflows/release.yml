@@ -95,6 +95,8 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=raw,value=latest
+          labels: |
+            org.opencontainers.image.url=https://naver.github.io/p2pcp/
 
       - name: Build and push image
         uses: docker/build-push-action@v7
