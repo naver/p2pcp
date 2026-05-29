@@ -1,5 +1,7 @@
 # p2pcp
 
+[![Website](https://img.shields.io/badge/site-naver.github.io%2Fp2pcp-38bdf8?style=flat-square)](https://naver.github.io/p2pcp/)
+
 High-performance P2P file replication and distribution tool. Distribute a single data source to many nodes concurrently, efficiently, and reliably.
 
 ## Features
