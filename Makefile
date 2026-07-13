@@ -41,10 +41,7 @@ image:
 GO_LICENSES_VERSION = v1.6.0
 
 _notice:
-	@cd src && $(GO) run github.com/google/go-licenses@$(GO_LICENSES_VERSION) report ./... \
-		--ignore github.com/naver/p2pcp \
-		--template ../scripts/notice.tpl \
-		> ../$(OUTPUT) 2>/dev/null
+	@GO="$(GO)" GO_LICENSES_VERSION=$(GO_LICENSES_VERSION) scripts/gen-notice.sh > $(OUTPUT)
 
 notice:
 	@$(MAKE) _notice OUTPUT=NOTICE
