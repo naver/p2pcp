@@ -54,6 +54,8 @@ notice-check:
 		 diff -u NOTICE NOTICE.tmp; \
 		 rm -f NOTICE.tmp; exit 1)
 	@rm -f NOTICE.tmp
+	@[ "$$(grep -om1 'sha256:[0-9a-f]\{64\}' Dockerfile)" = "$$(grep -om1 'sha256:[0-9a-f]\{64\}' NOTICE)" ] || \
+		(echo "Base image digest in NOTICE does not match Dockerfile."; exit 1)
 
 fmt:
 	cd src && $(GO) fmt ./...
