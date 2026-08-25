@@ -27,14 +27,35 @@ LDFLAGS += -X $(PACKAGE)/version.MajorVersion=$(MAJOR_VERSION) \
 
 GO_BUILD = cd src && CGO_ENABLED=1 $(GO) build -trimpath $(BUILD_FLAG)
 
+BUILD_TAGS ?= netgo,osusergo
+
 $(TARGET): $(SRC) Makefile
-	$(GO_BUILD) -tags netgo,osusergo -o ../$(TARGET) -ldflags '-extldflags "-static" $(LDFLAGS)'
+	$(GO_BUILD) -tags $(BUILD_TAGS) -o ../$(TARGET) -ldflags '-extldflags "-static" $(LDFLAGS)'
 
 dynamic: $(SRC) Makefile
 	$(GO_BUILD) -o ../$(TARGET) -ldflags '$(LDFLAGS)'
 
 image:
 	$(CONTAINER_ENGINE) build --build-arg BUILD_VERSION=$(BUILD_VERSION) -t $(TARGET):latest .
+
+GO_LICENSES_VERSION = v1.6.0
+
+_notice:
+	@GO="$(GO)" GO_LICENSES_VERSION=$(GO_LICENSES_VERSION) scripts/gen-notice.sh > $(OUTPUT)
+
+notice:
+	@$(MAKE) _notice OUTPUT=NOTICE
+	@echo "NOTICE regenerated."
+
+notice-check:
+	@$(MAKE) _notice OUTPUT=NOTICE.tmp
+	@diff -u NOTICE NOTICE.tmp >/dev/null 2>&1 || \
+		(echo "NOTICE is out of date. Run 'make notice' and commit the changes."; \
+		 diff -u NOTICE NOTICE.tmp; \
+		 rm -f NOTICE.tmp; exit 1)
+	@rm -f NOTICE.tmp
+	@[ "$$(grep -om1 'sha256:[0-9a-f]\{64\}' Dockerfile)" = "$$(grep -om1 'sha256:[0-9a-f]\{64\}' NOTICE)" ] || \
+		(echo "Base image digest in NOTICE does not match Dockerfile."; exit 1)
 
 fmt:
 	cd src && $(GO) fmt ./...
