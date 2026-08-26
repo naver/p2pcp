@@ -121,3 +121,16 @@ jobs:
         run: |
           test/create_random_data.sh test_src
           test/${{ matrix.test }}_test.sh test_src/ test_dst/
+
+  image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build image
+        run: docker build --build-arg BUILD_VERSION=ci -t p2pcp:ci .
+
+      - name: Verify image
+        run: docker run --rm p2pcp:ci -version
