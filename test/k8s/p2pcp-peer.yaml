@@ -6,6 +6,7 @@ metadata:
   labels:
     app: p2pcp-peer
 spec:
+  # CPU requests stay small so 10 peers and the seeder fit a 4-CPU CI runner.
   replicas: 10
   selector:
     matchLabels:
@@ -29,7 +30,7 @@ spec:
             - ALL
         resources:
           requests:
-            cpu: "500m"
+            cpu: "100m"
             memory: "512Mi"
           limits:
             cpu: "1000m"
@@ -52,7 +53,7 @@ spec:
           protocol: TCP
         resources:
           requests:
-            cpu: "500m"
+            cpu: "100m"
             memory: "512Mi"
           limits:
             cpu: "1000m"

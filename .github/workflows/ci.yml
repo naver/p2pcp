@@ -155,3 +155,13 @@ jobs:
             echo "::error::image reports '$actual', expected '$expected'"
             exit 1
           fi
+
+  e2e-k8s:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run e2e-k8s test
+        run: test/k8s_test.sh
