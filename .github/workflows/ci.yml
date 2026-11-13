@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Rerun CI on demand so a release can find fresh artifacts after the 90-day retention.
+  workflow_dispatch:
 
 permissions:
   contents: read
