@@ -11,35 +11,18 @@ spec:
     runAsUser: 500
     fsGroup: 500
   restartPolicy: Never
-  containers:
-  - name: p2pcp-seeder
-    image: p2pcp-image:k8s-test
+  initContainers:
+  - name: create-test-data
+    image: busybox:1.37
     imagePullPolicy: IfNotPresent
     securityContext:
       capabilities:
         drop:
         - ALL
-    ports:
-    - containerPort: 10090
-      protocol: TCP
-    resources:
-      requests:
-        cpu: "1000m"
-        memory: "1Gi"
-      limits:
-        cpu: "2000m"
-        memory: "2Gi"
-    readinessProbe:
-      httpGet:
-        path: /version
-        port: 10090
-      initialDelaySeconds: 5
-      periodSeconds: 2
-      timeoutSeconds: 1
     volumeMounts:
     - name: src-volume
       mountPath: /mnt/src
-    command: ["bash", "-c"]
+    command: ["sh", "-c"]
     args:
     - |
       set -e
@@ -88,9 +71,36 @@ spec:
       ln -s ../big/256m_rand_file_001 "$TARGET_DIR/tiny/sym_link"
 
       echo "Test data created successfully"
-
-      # Start p2pcp in seeder mode
-      exec /usr/bin/p2pcp -src /mnt/src -listen-addr 0.0.0.0:10090 -verbose
+  containers:
+  - name: p2pcp-seeder
+    image: p2pcp-image:k8s-test
+    imagePullPolicy: IfNotPresent
+    securityContext:
+      capabilities:
+        drop:
+        - ALL
+    ports:
+    - containerPort: 10090
+      protocol: TCP
+    resources:
+      requests:
+        cpu: "1000m"
+        memory: "1Gi"
+      limits:
+        cpu: "2000m"
+        memory: "2Gi"
+    readinessProbe:
+      httpGet:
+        path: /version
+        port: 10090
+      initialDelaySeconds: 5
+      periodSeconds: 2
+      timeoutSeconds: 1
+    volumeMounts:
+    - name: src-volume
+      mountPath: /mnt/src
+    command: ["/usr/bin/p2pcp"]
+    args: ["-src", "/mnt/src", "-listen-addr", "0.0.0.0:10090", "-verbose"]
   volumes:
   - name: src-volume
     emptyDir: {}

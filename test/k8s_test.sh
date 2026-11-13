@@ -61,14 +61,13 @@ ensure_kubectl() {
 run_and_verify() {
     local pod_name="$1"
     shift
-    local p2pcp_args="$*"
 
     if ! "$KUBECTL" --kubeconfig "$KUBECONFIG" run -i "$pod_name" \
         --image=p2pcp-image:k8s-test \
         --image-pull-policy=IfNotPresent \
         --restart=Never \
         --namespace=p2pcp \
-        --command -- bash -c "/usr/bin/p2pcp ${p2pcp_args}"; then
+        --command -- /usr/bin/p2pcp "$@"; then
         warn "kubectl run failed for ${pod_name}"
         "$KUBECTL" --kubeconfig "$KUBECONFIG" delete pod "$pod_name" -n p2pcp 2>/dev/null || true
         return 1

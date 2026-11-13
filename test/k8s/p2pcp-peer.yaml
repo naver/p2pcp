@@ -34,10 +34,8 @@ spec:
           limits:
             cpu: "1000m"
             memory: "1Gi"
-        command: ["bash", "-c"]
-        args:
-        - |
-          /usr/bin/p2pcp -peer-list p2pcp-seeder:10090 -peer-list-a p2pcp-peer.p2pcp.svc.cluster.local -dst /mnt/src -exit-complete -verbose
+        command: ["/usr/bin/p2pcp"]
+        args: ["-peer-list", "p2pcp-seeder:10090", "-peer-list-a", "p2pcp-peer.p2pcp.svc.cluster.local", "-dst", "/mnt/src", "-exit-complete", "-verbose"]
         volumeMounts:
         - name: src-volume
           mountPath: /mnt/src
@@ -66,10 +64,8 @@ spec:
           initialDelaySeconds: 1
           periodSeconds: 2
           timeoutSeconds: 1
-        command: ["bash", "-c"]
-        args:
-        - |
-          exec /usr/bin/p2pcp -src /mnt/src -listen-addr 0.0.0.0:10090 -verbose
+        command: ["/usr/bin/p2pcp"]
+        args: ["-src", "/mnt/src", "-listen-addr", "0.0.0.0:10090", "-verbose"]
         volumeMounts:
         - name: src-volume
           mountPath: /mnt/src
