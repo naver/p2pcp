@@ -6,11 +6,18 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   ci:
     runs-on: ubuntu-latest
     container: golang:1.27
     timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     steps:
       - name: Install dependencies
         run: |
