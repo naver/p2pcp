@@ -29,7 +29,7 @@ jobs:
         run: make notice-check
 
       - name: Build
-        run: make BUILD_VERSION=${BUILD_SHA:0:7}
+        run: make BUILD_VERSION="${BUILD_SHA:0:7}"
         shell: bash
         env:
           BUILD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -83,7 +83,7 @@ jobs:
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Build
-        run: make BUILD_VERSION=${BUILD_SHA:0:7}
+        run: make BUILD_VERSION="${BUILD_SHA:0:7}"
         shell: bash
         env:
           BUILD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
