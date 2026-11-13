@@ -5,7 +5,33 @@ on:
     types: [published]
 
 jobs:
+  check-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      short-sha: ${{ steps.check.outputs.short-sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Check tag against VERSION
+        id: check
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version=$(make -s print-version)
+          # Allow a prerelease suffix (3.0.0-rc1) so prereleases can ship without bumping VERSION.
+          if [[ ! "$TAG" =~ ^${version//./\\.}(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::release tag '$TAG' does not match VERSION '$version'"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "short-sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
   download-ci-artifact:
+    needs: [check-version]
     runs-on: ubuntu-latest
     permissions:
       actions: read
@@ -66,6 +92,8 @@ jobs:
             --clobber
 
   build-and-push-image:
+    # Push only images whose commit passed CI, including the image smoke test.
+    needs: [check-version, download-ci-artifact]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -107,10 +135,34 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           sbom: true
           build-args: |
-            BUILD_VERSION=${{ github.event.release.tag_name }}
+            BUILD_VERSION=${{ needs.check-version.outputs.short-sha }}
+
+  verify-image:
+    needs: [check-version, build-and-push-image]
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Pull and run the published image anonymously
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          REPO: ${{ github.repository }}
+          EXPECTED: p2pcp-${{ needs.check-version.outputs.version }}+${{ needs.check-version.outputs.short-sha }}
+        run: |
+          image="ghcr.io/${REPO,,}:${TAG}"
+          # Fails when the package is not public, e.g. if an organization policy keeps new packages private.
+          if ! docker pull "$image"; then
+            echo "::error::anonymous pull of $image failed. Make sure the package is public, then re-run the failed jobs."
+            exit 1
+          fi
+          actual=$(docker run --rm "$image" -version 2>&1)
+          echo "$actual"
+          if [ "$actual" != "$EXPECTED" ]; then
+            echo "::error::published image reports '$actual', expected '$EXPECTED'"
+            exit 1
+          fi
 
   update-release-notes:
-    needs: [deploy, build-and-push-image]
+    needs: [deploy, verify-image]
     runs-on: ubuntu-latest
     permissions:
       contents: write
