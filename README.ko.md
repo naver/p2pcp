@@ -178,7 +178,16 @@ p2pcp는 `-peer-registry-heartbeat-url`로 지정된 엔드포인트에 주기�
 ```bash
 make            # 정적 바이너리 (기본)
 make dynamic    # 동적 바이너리 (시스템 NSS/DNS 연동이 필요한 환경용)
+make image      # 현재 플랫폼용 컨테이너 이미지 p2pcp:latest
 ```
+
+### 컨테이너 이미지
+릴리스마다 GitHub Container Registry 에 `linux/amd64`, `linux/arm64` 이미지를 게시합니다. `latest` 는 prerelease 가 아닌 가장 최근 버전입니다.
+```bash
+docker pull ghcr.io/naver/p2pcp:<version>
+docker run --rm ghcr.io/naver/p2pcp:<version> -version
+```
+entrypoint 가 `p2pcp` 이고 이미지에 bash 가 없습니다. 옵션은 `bash -c` 로 감싸지 말고 컨테이너 인자(Kubernetes 에서는 `args`)로 넘기세요.
 
 ## 문제 해결(FAQ)
 - 동적 디스커버리 옵션은 상호 배타적입니다. `-peer-list-url`/`-peer-list-srv`/`-peer-list-a` 중 하나만 지정하세요.
