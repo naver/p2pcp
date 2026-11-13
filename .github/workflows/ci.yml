@@ -130,14 +130,28 @@ jobs:
           test/${{ matrix.test }}_test.sh test_src/ test_dst/
 
   image:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    strategy:
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    env:
+      BUILD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
       - name: Build image
-        run: docker build --build-arg BUILD_VERSION=ci -t p2pcp:ci .
+        run: make image BUILD_VERSION="${BUILD_SHA:0:7}"
+        shell: bash
 
       - name: Verify image
-        run: docker run --rm p2pcp:ci -version
+        shell: bash
+        run: |
+          expected="p2pcp-$(make -s print-version)+${BUILD_SHA:0:7}"
+          actual=$(docker run --rm p2pcp:latest -version 2>&1)
+          echo "$actual"
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::image reports '$actual', expected '$expected'"
+            exit 1
+          fi
