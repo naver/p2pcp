@@ -182,7 +182,7 @@ make image      # 현재 플랫폼용 컨테이너 이미지 p2pcp:latest
 ```
 
 ### 컨테이너 이미지
-릴리스마다 GitHub Container Registry 에 `linux/amd64`, `linux/arm64` 이미지를 게시합니다. `latest` 는 가장 높은 정식 버전을 가리킵니다. prerelease(`-rc1` 등)나 이전 버전의 백포트 릴리스는 `latest` 를 옮기지 않습니다.
+2.1.0 다음 릴리스부터 GitHub Container Registry 에 `linux/amd64`, `linux/arm64` 이미지를 게시합니다. `latest` 는 가장 높은 정식 버전을 가리킵니다. prerelease(`-rc1` 등)나 이전 버전의 백포트 릴리스는 `latest` 를 옮기지 않습니다.
 ```bash
 docker pull ghcr.io/naver/p2pcp:<version>
 docker run --rm ghcr.io/naver/p2pcp:<version> -version
