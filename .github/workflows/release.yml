@@ -95,20 +95,24 @@ jobs:
         run: chmod +x p2pcp
 
       - name: Create release archive
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          ARCH: ${{ matrix.arch }}
         run: |
-          RELEASE_VERSION=${{ github.event.release.tag_name }}
-          PACKAGE_NAME="p2pcp-${RELEASE_VERSION}-linux-${{ matrix.arch }}"
-          mkdir -p ${PACKAGE_NAME}
-          cp p2pcp README.md LICENSE NOTICE ${PACKAGE_NAME}/
-          tar czf ${PACKAGE_NAME}.tar.gz ${PACKAGE_NAME}
+          PACKAGE_NAME="p2pcp-${TAG}-linux-${ARCH}"
+          mkdir -p "${PACKAGE_NAME}"
+          cp p2pcp README.md LICENSE NOTICE "${PACKAGE_NAME}/"
+          tar czf "${PACKAGE_NAME}.tar.gz" "${PACKAGE_NAME}"
 
       - name: Upload release asset
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.release.tag_name }}
+          ARCH: ${{ matrix.arch }}
+          REPO: ${{ github.repository }}
         run: |
-          gh release upload ${{ github.event.release.tag_name }} \
-            p2pcp-${{ github.event.release.tag_name }}-linux-${{ matrix.arch }}.tar.gz \
-            --repo ${{ github.repository }} \
+          gh release upload "$TAG" "p2pcp-${TAG}-linux-${ARCH}.tar.gz" \
+            --repo "$REPO" \
             --clobber
 
   build-and-push-image:
