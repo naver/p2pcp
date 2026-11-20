@@ -56,6 +56,7 @@ jobs:
     permissions:
       actions: read
     strategy:
+      fail-fast: false
       matrix:
         arch: [amd64, arm64]
     steps:
@@ -80,6 +81,7 @@ jobs:
     permissions:
       contents: write
     strategy:
+      fail-fast: false
       matrix:
         arch: [amd64, arm64]
     steps:
