@@ -33,6 +33,8 @@ jobs:
 
       - name: Decide whether the image gets latest
         id: latest
+        # bash adds pipefail, so a failed ls-remote fails the step instead of silently leaving latest off.
+        shell: bash
         env:
           TAG: ${{ github.event.release.tag_name }}
         run: |
