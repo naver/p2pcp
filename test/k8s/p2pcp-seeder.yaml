@@ -25,7 +25,7 @@ spec:
     command: ["sh", "-c"]
     args:
     - |
-      set -e
+      set -eo pipefail
       TARGET_DIR=/mnt/src
 
       # Create directories
@@ -35,7 +35,8 @@ spec:
       for i in 1 2 3 4; do
         file="$TARGET_DIR/big/256m_rand_file_$(printf "%03d" "$i")"
         truncate -s 256M "$file"
-        head -c 1M < /dev/urandom | dd of="$file" conv=notrunc status=none
+        # busybox head rejects the uppercase suffix in 1M.
+        head -c 1048576 < /dev/urandom | dd of="$file" conv=notrunc status=none
       done
 
       # Create small random files
