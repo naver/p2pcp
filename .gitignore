@@ -13,3 +13,4 @@ src/test-output.json
 test/kind
 test/kind.kubeconfig
 test/kubectl
+test/*.tmp
