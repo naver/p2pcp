@@ -160,7 +160,12 @@ jobs:
 
   verify-image:
     needs: [check-version, build-and-push-image]
-    runs-on: ubuntu-latest
+    # Each runner pulls and runs the image variant for its own platform.
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
     permissions: {}
     steps:
       - name: Pull and run the published image anonymously
