@@ -6,7 +6,7 @@ on:
     branches: ['**']
   pull_request:
     branches: [main]
-  # Rerun CI on demand so a release can find fresh artifacts after the 90-day retention.
+  # Rerun CI on the release tag (gh workflow run ci.yml --ref <tag>) so a release can find fresh artifacts after the 90-day retention.
   workflow_dispatch:
 
 permissions:
