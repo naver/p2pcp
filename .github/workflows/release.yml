@@ -12,7 +12,6 @@ jobs:
     outputs:
       version: ${{ steps.check.outputs.version }}
       short-sha: ${{ steps.check.outputs.short-sha }}
-      latest: ${{ steps.latest.outputs.latest }}
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -31,24 +30,6 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "short-sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
-
-      - name: Decide whether the image gets latest
-        id: latest
-        # bash adds pipefail, so a failed ls-remote fails the step instead of silently leaving latest off.
-        shell: bash
-        env:
-          TAG: ${{ github.event.release.tag_name }}
-        run: |
-          # Only the highest stable version gets latest, so prereleases and backports leave it alone.
-          latest=false
-          if [[ "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            highest=$(git ls-remote --tags --refs origin | sed 's|.*refs/tags/||' \
-              | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
-            [ "$TAG" = "$highest" ] && latest=true
-            echo "highest stable tag: $highest"
-          fi
-          echo "latest=$latest"
-          echo "latest=$latest" >> "$GITHUB_OUTPUT"
 
   download-ci-artifact:
     needs: [check-version]
@@ -148,8 +129,9 @@ jobs:
           images: ghcr.io/${{ github.repository }}
           tags: |
             type=semver,pattern={{version}}
+          # tag-latest adds latest once the image is verified.
           flavor: |
-            latest=${{ needs.check-version.outputs.latest }}
+            latest=false
           labels: |
             org.opencontainers.image.url=https://naver.github.io/p2pcp/
 
@@ -193,6 +175,55 @@ jobs:
             echo "::error::published image reports '$actual', expected '$EXPECTED'"
             exit 1
           fi
+
+  tag-latest:
+    # Decided last from the tags present then, so a re-run or a slower release of an older version cannot move latest back.
+    needs: [verify-image]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Decide whether this release is the highest stable version
+        id: latest
+        # bash adds pipefail, so a failed ls-remote fails the step instead of silently leaving latest off.
+        shell: bash
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          latest=false
+          if [[ "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            highest=$(git ls-remote --tags --refs origin | sed 's|.*refs/tags/||' \
+              | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n1)
+            [ "$TAG" = "$highest" ] && latest=true
+            echo "highest stable tag: $highest"
+          fi
+          echo "latest=$latest"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        if: steps.latest.outputs.latest == 'true'
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to GHCR
+        if: steps.latest.outputs.latest == 'true'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Point latest at this release
+        if: steps.latest.outputs.latest == 'true'
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          REPO: ${{ github.repository }}
+        run: |
+          image="ghcr.io/${REPO,,}"
+          docker buildx imagetools create --tag "${image}:latest" "${image}:${TAG}"
 
   update-release-notes:
     needs: [deploy, verify-image]
