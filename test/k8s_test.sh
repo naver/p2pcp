@@ -195,7 +195,9 @@ info "Waiting for seeder pod to be ready..."
 "$KUBECTL" --kubeconfig "$KUBECONFIG" apply -f "${BASE_DIR}/test/k8s/p2pcp-peer-service.yaml" || die "Failed to apply peer service"
 
 info "Waiting for peer pods to be ready..."
-"$KUBECTL" --kubeconfig "$KUBECONFIG" wait --for=condition=ready pod -l app=p2pcp-peer -n p2pcp --timeout=600s || die "Peer pods not ready"
+replicas=$("$KUBECTL" --kubeconfig "$KUBECONFIG" get replicaset p2pcp-peer -n p2pcp -o jsonpath='{.spec.replicas}') || die "Failed to read peer replicas"
+# Wait on the ReplicaSet; a pod selector only sees the pods that exist when the wait starts.
+"$KUBECTL" --kubeconfig "$KUBECONFIG" wait --for=jsonpath='{.status.readyReplicas}'="$replicas" replicaset/p2pcp-peer -n p2pcp --timeout=600s || die "Peer pods not ready"
 
 info "Testing with peer-list-srv..."
 run_and_verify p2pcp-peer-srv \
