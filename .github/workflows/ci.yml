@@ -69,7 +69,8 @@ jobs:
             ## Test coverage
 
       - name: Update coverage report to PR
-        if: github.event_name == 'pull_request'
+        # A fork PR gets a read-only token, so commenting would fail the job and skip the e2e tests.
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         uses: peter-evans/create-or-update-comment@v5
         with:
           comment-id: ${{ steps.fc.outputs.comment-id }}
