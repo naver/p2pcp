@@ -16,43 +16,87 @@ KUBECONFIG="${BASE_DIR}/test/kind.kubeconfig"
 CLUSTER_NAME="p2pcp-test"
 
 #######################################
-# Download kind if not present
+# Pinned SHA-256 of the official binaries; update together with KIND_VERSION and KUBECTL_VERSION
 #######################################
-ensure_kind() {
-    if [[ -x "$KIND" ]]; then
-        info "kind already exists, skipping download"
-        return 0
-    fi
+kind_sha256() {
+    case "$1" in
+        linux-amd64)  echo a6875aaea358acf0ac07786b1a6755d08fd640f4c79b7a2e46681cc13f49a04b ;;
+        linux-arm64)  echo 5e4507a41c69679562610b1be82ba4f80693a7826f4e9c6e39236169a3e4f9d0 ;;
+        darwin-amd64) echo 3435134325b6b9406ccfec417b13bb46a808fc74e9a2ebb0ca31b379c8293863 ;;
+        darwin-arm64) echo 5240ca1acb587e1d0386532dd8c3373d81f5173b5af322919fc56f0cdd646596 ;;
+    esac
+}
 
-    info "Downloading kind ${KIND_VERSION}..."
-    local os arch
-    os=$(uname -s | tr '[:upper:]' '[:lower:]')
-    arch=$(uname -m)
-    [[ "$arch" == "x86_64" ]] && arch="amd64"
-    [[ "$arch" == "aarch64" ]] && arch="arm64"
-
-    curl -fsSL -o "$KIND" "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-${os}-${arch}" || return 1
-    chmod +x "$KIND"
+kubectl_sha256() {
+    case "$1" in
+        linux-amd64)  echo 646d58f6d98ee670a71d9cdffbf6625aeea2849d567f214bc43a35f8ccb7bf70 ;;
+        linux-arm64)  echo ba4004f98f3d3a7b7d2954ff0a424caa2c2b06b78c17b1dccf2acc76a311a896 ;;
+        darwin-amd64) echo 516585916f499077fac8c2fdd2a382818683f831020277472e6bcf8d1a6f9be4 ;;
+        darwin-arm64) echo 5bfd5de53a054b4ef614c60748e28bf47441c7ed4db47ec3c19a3e2fa0eb5555 ;;
+    esac
 }
 
 #######################################
-# Download kubectl if not present
+# Print the host platform as <os>-<arch>, e.g. linux-amd64
 #######################################
-ensure_kubectl() {
-    if [[ -x "$KUBECTL" ]]; then
-        info "kubectl already exists, skipping download"
-        return 0
-    fi
-
-    info "Downloading kubectl ${KUBECTL_VERSION}..."
+platform() {
     local os arch
     os=$(uname -s | tr '[:upper:]' '[:lower:]')
     arch=$(uname -m)
     [[ "$arch" == "x86_64" ]] && arch="amd64"
     [[ "$arch" == "aarch64" ]] && arch="arm64"
+    echo "${os}-${arch}"
+}
 
-    curl -fsSL -o "$KUBECTL" "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/${os}/${arch}/kubectl" || return 1
-    chmod +x "$KUBECTL"
+#######################################
+# Print the SHA-256 of a file (sha256sum on Linux, shasum on macOS)
+#######################################
+sha256_of() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$1" | cut -d' ' -f1
+    else
+        shasum -a 256 "$1" | cut -d' ' -f1
+    fi
+}
+
+#######################################
+# Download a tool unless a copy with the pinned checksum is present
+# Arguments: name, destination, URL, expected SHA-256
+#######################################
+ensure_tool() {
+    local name="$1" dest="$2" url="$3" want="$4"
+    if [[ -z "$want" ]]; then
+        warn "no pinned checksum for ${name} on $(platform)"
+        return 1
+    fi
+    if [[ -x "$dest" && "$(sha256_of "$dest")" == "$want" ]]; then
+        info "${name} already exists, skipping download"
+        return 0
+    fi
+
+    info "Downloading ${name}..."
+    curl -fsSL -o "${dest}.tmp" "$url" || { rm -f "${dest}.tmp"; return 1; }
+    if [[ "$(sha256_of "${dest}.tmp")" != "$want" ]]; then
+        warn "checksum mismatch for ${url}"
+        rm -f "${dest}.tmp"
+        return 1
+    fi
+    chmod +x "${dest}.tmp"
+    mv "${dest}.tmp" "$dest"
+}
+
+ensure_kind() {
+    local p
+    p=$(platform)
+    ensure_tool "kind ${KIND_VERSION}" "$KIND" \
+        "https://kind.sigs.k8s.io/dl/${KIND_VERSION}/kind-${p}" "$(kind_sha256 "$p")"
+}
+
+ensure_kubectl() {
+    local p
+    p=$(platform)
+    ensure_tool "kubectl ${KUBECTL_VERSION}" "$KUBECTL" \
+        "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/${p%-*}/${p#*-}/kubectl" "$(kubectl_sha256 "$p")"
 }
 
 #######################################
@@ -61,14 +105,13 @@ ensure_kubectl() {
 run_and_verify() {
     local pod_name="$1"
     shift
-    local p2pcp_args="$*"
 
     if ! "$KUBECTL" --kubeconfig "$KUBECONFIG" run -i "$pod_name" \
         --image=p2pcp-image:k8s-test \
         --image-pull-policy=IfNotPresent \
         --restart=Never \
         --namespace=p2pcp \
-        --command -- bash -c "/usr/bin/p2pcp ${p2pcp_args}"; then
+        --command -- /usr/bin/p2pcp "$@"; then
         warn "kubectl run failed for ${pod_name}"
         "$KUBECTL" --kubeconfig "$KUBECONFIG" delete pod "$pod_name" -n p2pcp 2>/dev/null || true
         return 1
@@ -152,7 +195,9 @@ info "Waiting for seeder pod to be ready..."
 "$KUBECTL" --kubeconfig "$KUBECONFIG" apply -f "${BASE_DIR}/test/k8s/p2pcp-peer-service.yaml" || die "Failed to apply peer service"
 
 info "Waiting for peer pods to be ready..."
-"$KUBECTL" --kubeconfig "$KUBECONFIG" wait --for=condition=ready pod -l app=p2pcp-peer -n p2pcp --timeout=600s || die "Peer pods not ready"
+replicas=$("$KUBECTL" --kubeconfig "$KUBECONFIG" get replicaset p2pcp-peer -n p2pcp -o jsonpath='{.spec.replicas}') || die "Failed to read peer replicas"
+# Wait on the ReplicaSet; a pod selector only sees the pods that exist when the wait starts.
+"$KUBECTL" --kubeconfig "$KUBECONFIG" wait --for=jsonpath='{.status.readyReplicas}'="$replicas" replicaset/p2pcp-peer -n p2pcp --timeout=600s || die "Peer pods not ready"
 
 info "Testing with peer-list-srv..."
 run_and_verify p2pcp-peer-srv \

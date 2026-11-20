@@ -2,15 +2,25 @@ name: CI
 
 on:
   push:
-    branches: ['*']
+    # Every branch, so any commit that may be tagged, backports included, has a CI run the release can use.
+    branches: ['**']
   pull_request:
     branches: [main]
+  # Rerun CI on the release tag (gh workflow run ci.yml --ref <tag>) so a release can find fresh artifacts after the 90-day retention.
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   ci:
     runs-on: ubuntu-latest
-    container: golang:1.24
+    container: golang:1.27
     timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+      pull-requests: write
     steps:
       - name: Install dependencies
         run: |
@@ -29,7 +39,7 @@ jobs:
         run: make notice-check
 
       - name: Build
-        run: make BUILD_VERSION=${BUILD_SHA:0:7}
+        run: make BUILD_VERSION="${BUILD_SHA:0:7}"
         shell: bash
         env:
           BUILD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -59,7 +69,8 @@ jobs:
             ## Test coverage
 
       - name: Update coverage report to PR
-        if: github.event_name == 'pull_request'
+        # A fork PR gets a read-only token, so commenting would fail the job and skip the e2e tests.
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
         uses: peter-evans/create-or-update-comment@v5
         with:
           comment-id: ${{ steps.fc.outputs.comment-id }}
@@ -69,7 +80,7 @@ jobs:
 
   build-arm64:
     runs-on: ubuntu-24.04-arm
-    container: golang:1.24
+    container: golang:1.27
     timeout-minutes: 10
     steps:
       - name: Install dependencies
@@ -83,7 +94,7 @@ jobs:
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: Build
-        run: make BUILD_VERSION=${BUILD_SHA:0:7}
+        run: make BUILD_VERSION="${BUILD_SHA:0:7}"
         shell: bash
         env:
           BUILD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -99,6 +110,7 @@ jobs:
     timeout-minutes: 10
     needs: [ci]
     strategy:
+      fail-fast: false
       matrix:
         test: [local, peer, command]
     steps:
@@ -121,3 +133,41 @@ jobs:
         run: |
           test/create_random_data.sh test_src
           test/${{ matrix.test }}_test.sh test_src/ test_dst/
+
+  image:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-latest, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    env:
+      BUILD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Build image
+        run: make image BUILD_VERSION="${BUILD_SHA:0:7}"
+        shell: bash
+
+      - name: Verify image
+        shell: bash
+        run: |
+          expected="p2pcp-$(make -s print-version)+${BUILD_SHA:0:7}"
+          actual=$(docker run --rm p2pcp:latest -version 2>&1)
+          echo "$actual"
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::image reports '$actual', expected '$expected'"
+            exit 1
+          fi
+
+  e2e-k8s:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Run e2e-k8s test
+        run: test/k8s_test.sh
